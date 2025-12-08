@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.routing import APIRoute
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
@@ -12,6 +13,23 @@ from app.notify.emailer import send_down_alert
 
 # ===== FastAPI app create pannrom =====
 app = FastAPI()
+
+# 🔥 CORS middleware – IMPORTANT: only *after* app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://localhost:3000",
+        "*",  # local dev ku ok
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],     # GET, POST, DELETE, OPTIONS ellame
+    allow_headers=["*"],
+)
 
 print("🔥 Currently Connected DB:", db.name)
 
@@ -81,10 +99,6 @@ async def debug_run_check():
 
 
 # ===== OPTIONAL: TEST EMAIL ROUTE =====
-# Ithu just manual test-ku. Project-ku thevai illa.
-# Mail already sariyaa work aagiduchu na, inime use panna vendam.
-# Ungalukku venumna comment pannalaam / delete pannalaam.
-
 @app.get("/test-email")
 async def test_email():
     """
