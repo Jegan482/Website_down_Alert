@@ -1,8 +1,11 @@
+# app/auth/routes.py
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.database import db
 from .hashing import hash_password, verify_password
+from app.auth.jwt_utils import create_access_token  # 👈 NEW import
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -12,6 +15,9 @@ class UserIn(BaseModel):
     password: str
 
 
+# =====================================================
+# 🔵 CREATE USER  →  returns id + JWT token
+# =====================================================
 @router.post("/create")
 async def create_user(user: UserIn):
     print("🟢 /auth/create called with:", user.username)
@@ -23,14 +29,29 @@ async def create_user(user: UserIn):
 
     hashed = hash_password(user.password)
 
-    await db.users.insert_one({
+    result = await db.users.insert_one({
         "username": user.username,
         "password": hashed
     })
 
-    return {"message": "User created successfully"}
+    user_id = str(result.inserted_id)
+
+    # 🔐 JWT token create pannrom – payload-la user_id store
+    token = create_access_token({"user_id": user_id})
+
+    return {
+        "message": "User created successfully",
+        "user": {
+            "id": user_id,
+            "username": user.username,
+        },
+        "token": token,  # 👈 React/frontend store pannikum place
+    }
 
 
+# =====================================================
+# 🔵 LOGIN USER  →  returns same id + new JWT token
+# =====================================================
 @router.post("/login")
 async def login_user(user: UserIn):
     print("🟢 /auth/login called with:", user.username)
@@ -43,14 +64,29 @@ async def login_user(user: UserIn):
     if not ok:
         raise HTTPException(status_code=400, detail="Wrong password")
 
-    return {"message": "Login Success", "username": user.username}
+    user_id = str(db_user["_id"])
+    token = create_access_token({"user_id": user_id})
+
+    return {
+        "message": "Login Success",
+        "user": {
+            "id": user_id,
+            "username": db_user["username"],
+        },
+        "token": token,
+    }
+
+
+# =====================================================
+# 🔵 GET ALL USERS  →  (debug only)
+# =====================================================
 @router.get("/all-users")
 async def get_all_users():
-    cursor = db.users.find({}, {"_id": 0, "password": 0})  # _id & password hidden
-    users = await cursor.to_list(length=100)
+    cursor = db.users.find({})
+    users = []
+    async for doc in cursor:
+        users.append({
+            "id": str(doc["_id"]),
+            "username": doc.get("username")
+        })
     return users
-
-
-
-
-

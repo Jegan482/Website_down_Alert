@@ -6,9 +6,9 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.routes.test import router as test_router
 from app.routes.websites import router as websites_router
 from app.auth.routers import router as auth_router
-from app.monitor.scheduler import check_all_websites
+from app.monitor.scheduler import check_all_websites, recheck_ssl_for_all_websites
 from app.database import db
-from app.notify.emailer import send_down_alert
+from app.notify.emailer import send_down_alert, send_ssl_expiry_alert
 
 
 # ===== FastAPI app create pannrom =====
@@ -57,18 +57,34 @@ app.include_router(test_router)
 # /websites/... → website CRUD, per-user websites etc.
 app.include_router(websites_router)
 
-
-# ===== Scheduler events =====
 @app.on_event("startup")
 async def startup_event():
     """
     Server start aana udane scheduler start pannum.
-    check_all_websites() ku interval job add pannuvom.
+    Uptime check + SSL recheck jobs add pannuvom.
     """
     if not scheduler.running:
         if not scheduler.get_jobs():
-            # minutes=1 → 1 nimishathukku oru thadava ellaa sites-um check pannum
-            scheduler.add_job(check_all_websites, "interval", minutes=1)
+            # ⏱ 1) Uptime check – 1 minute-ku oru thadava
+            scheduler.add_job(
+                check_all_websites,
+                "interval",
+                minutes=1,
+                id="uptime_check_job",
+            )
+
+            # 🔒 2) SSL recheck – 24 hours-ku oru thadava
+            scheduler.add_job(
+                recheck_ssl_for_all_websites,
+                "interval",
+                hours=24,
+                id="ssl_recheck_job",
+            )
+
+        # (Optional) server start aana udane oru thadava both checks run pannalam
+        await check_all_websites()          # 👉 uptime first run
+        await recheck_ssl_for_all_websites()  # 👉 ssl first run
+
         scheduler.start()
         print("🚀 Scheduler started!")
     else:
@@ -85,17 +101,16 @@ async def shutdown_event():
         print("🛑 Scheduler stopped")
 
 
-# ===== Manual debug route for scheduler =====
-@app.get("/debug/run-check")
-async def debug_run_check():
+@app.get("/debug/run-ssl")
+async def debug_run_ssl():
     """
-    Scheduler a wait pannama, manual-a ellaa websites-um check panna
-    intha route use panna mudiyum.
+    Manual-a ellaa HTTPS websites-um SSL recheck panna
     Example:
-        GET http://127.0.0.1:8000/debug/run-check
+        GET http://127.0.0.1:8000/debug/run-ssl
     """
-    await check_all_websites()
-    return {"message": "Manual check completed"}
+    await recheck_ssl_for_all_websites()
+    return {"message": "Manual SSL recheck completed"}
+
 
 
 # ===== OPTIONAL: TEST EMAIL ROUTE =====
@@ -114,3 +129,29 @@ async def test_email():
         error="Manual test error",
     )
     return {"message": f"Email test triggered to {to_email}"}
+
+
+
+@app.get("/test-ssl-email")
+async def test_ssl_email():
+    """
+    Manual SSL expiry email test:
+    GET http://127.0.0.1:8000/test-ssl-email
+    """
+    to_email = "Jegan28122005@gmail.com"  # unga email
+    website_name = "Test SSL Site"
+    url = "https://example.com"
+
+    # 👇 inga value maathi maathi different mails test pannalaam
+    days_left = 5   # expiring soon
+    # days_left = 0  # expired
+    # days_left = -2 # expired, negative
+
+    send_ssl_expiry_alert(
+        to_email=to_email,
+        website_name=website_name,
+        url=url,
+        days_left=days_left,
+    )
+
+    return {"message": f"SSL test email sent to {to_email} with days_left={days_left}"}

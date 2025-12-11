@@ -121,3 +121,106 @@ Website Monitor
         print(f"📧 Down alert sent to {to_email} for {website_name}")
     except Exception as e:
         print("❌ Failed to send email:", repr(e))
+
+
+
+def send_ssl_expiry_alert(
+    to_email: str,
+    website_name: str,
+    url: str,
+    days_left: int,
+):
+    """
+    SSL expiry alert email.
+    days_left <= 0  → SSL expired
+    days_left > 0   → SSL expiring soon
+    """
+
+    print("DEBUG SMTP CONFIG (SSL ALERT):")
+    print("  HOST:", SMTP_HOST)
+    print("  USER:", SMTP_USER)
+    print("  FROM:", FROM_EMAIL)
+
+    if not (SMTP_USER and SMTP_PASS):
+        print("⚠️ SMTP credentials missing, cannot send SSL alert email.")
+        return
+
+    if not to_email:
+        print("⚠️ No alert_email given, skipping SSL email.")
+        return
+
+    # ---------- Subject & status text ----------
+    if days_left <= 0:
+        subject = f"[Website Monitor] SSL certificate EXPIRED for {website_name}"
+        status_line = "The SSL certificate has EXPIRED."
+    else:
+        subject = f"[Website Monitor] SSL certificate expiring soon for {website_name}"
+        status_line = f"The SSL certificate will expire in {days_left} day(s)."
+
+    # ---------- Plain-text body ----------
+    text_body = f"""Hi,
+
+This is an automatic SSL expiry notification from your Website Monitor.
+
+Website:
+  Name : {website_name}
+  URL  : {url}
+
+Status:
+  {status_line}
+
+Please renew the SSL certificate as soon as possible to avoid browser security warnings.
+
+Thanks,
+Website Monitor
+"""
+
+    # ---------- HTML body ----------
+    html_body = f"""\
+<html>
+  <body style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color:#111827;">
+    <p>Hi,</p>
+
+    <p>This is an automatic <strong>SSL expiry notification</strong> from your Website Monitor.</p>
+
+    <p>Website details:</p>
+    <ul>
+      <li><strong>Name:</strong> {website_name}</li>
+      <li><strong>URL:</strong> <a href="{url}">{url}</a></li>
+    </ul>
+
+    <p><strong>Status:</strong> {status_line}</p>
+
+    <p>
+      Please renew the SSL certificate as soon as possible to avoid 
+      browser security warnings for your visitors.
+    </p>
+
+    <p style="margin-top:16px;">
+      Thanks,<br/>
+      <strong>Website Monitor</strong>
+    </p>
+  </body>
+</html>
+"""
+
+    # ---------- Build email ----------
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"Website Monitor <{FROM_EMAIL}>"
+    msg["To"] = to_email
+    msg["Reply-To"] = FROM_EMAIL
+
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    try:
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls(context=context)
+            server.login(SMTP_USER, SMTP_PASS)
+            server.send_message(msg)
+
+        print(f"📧 SSL expiry alert sent to {to_email} for {website_name} (days_left={days_left})")
+    except Exception as e:
+        print("❌ Failed to send SSL expiry email:", repr(e))
