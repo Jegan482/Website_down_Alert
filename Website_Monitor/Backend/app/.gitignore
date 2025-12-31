@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+venv/
+jeg/
+
+# Node
+node_modules/
+dist/
+
+# Editor
+.vscode/
+
+# OS
+.DS_Store
