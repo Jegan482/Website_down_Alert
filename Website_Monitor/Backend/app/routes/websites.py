@@ -128,12 +128,25 @@ async def add_website(
         "status": "UP" if result["is_up"] else "DOWN",
     })
 
-    site["id"] = str(site_id)
-    return {"message": "Website added", "website": site}
+    # 🔥 SAFE SERIALIZATION FIX
+    updated_site = await db.websites.find_one({"_id": site_id})
+    updated_site["id"] = str(updated_site["_id"])
+    del updated_site["_id"]
+
+    if updated_site.get("ssl_expiry_date"):
+        updated_site["ssl_expiry_date"] = updated_site["ssl_expiry_date"].isoformat()
+
+    if updated_site.get("last_checked"):
+        updated_site["last_checked"] = updated_site["last_checked"].isoformat()
+
+    return {
+        "message": "Website added",
+        "website": updated_site
+    }
 
 
 # ============================================================
-# 🔵 GET USER WEBSITES (🔥 FIXED)
+# 🔵 GET USER WEBSITES
 # ============================================================
 @router.get("/user_get")
 async def get_user_websites(current_user: dict = Depends(get_current_user)):
@@ -143,6 +156,13 @@ async def get_user_websites(current_user: dict = Depends(get_current_user)):
     async for w in db.websites.find({"user_id": user_id}):
         w["id"] = str(w["_id"])
         del w["_id"]
+
+        if w.get("ssl_expiry_date"):
+            w["ssl_expiry_date"] = w["ssl_expiry_date"].isoformat()
+
+        if w.get("last_checked"):
+            w["last_checked"] = w["last_checked"].isoformat()
+
         websites.append(w)
 
     return websites
@@ -166,11 +186,21 @@ async def get_website_history(
     website["id"] = str(website["_id"])
     del website["_id"]
 
+    if website.get("ssl_expiry_date"):
+        website["ssl_expiry_date"] = website["ssl_expiry_date"].isoformat()
+
+    if website.get("last_checked"):
+        website["last_checked"] = website["last_checked"].isoformat()
+
     history = []
     async for h in db.history.find({"website_id": oid}).sort("checked_at", 1):
         h["id"] = str(h["_id"])
         del h["_id"]
         h["website_id"] = str(oid)
+
+        if h.get("checked_at"):
+            h["checked_at"] = h["checked_at"].isoformat()
+
         history.append(h)
 
     return {"website": website, "history": history}
