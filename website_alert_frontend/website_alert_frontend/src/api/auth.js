@@ -1,7 +1,7 @@
 // src/api/auth.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 export async function loginUser(username, password) {
   const resp = await axios.post(`${API_BASE_URL}/auth/login`, {

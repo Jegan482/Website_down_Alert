@@ -1,7 +1,7 @@
 // src/api/websites.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000"; // backend URL
+const API_BASE_URL = "https://website-monitor-backend.onrender.com";
 
 // 🔐 Auth header helper
 function authHeaders() {
@@ -9,7 +9,7 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-// ================= GET all websites (current user) =================
+// ================= GET all websites =================
 export async function fetchWebsites() {
   const resp = await axios.get(
     `${API_BASE_URL}/websites/user_get`,
