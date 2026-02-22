@@ -1,92 +1,131 @@
-# app/auth/routes.py
-
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from datetime import datetime
 
 from app.database import db
-from .hashing import hash_password, verify_password
-from app.auth.jwt_utils import create_access_token  # 👈 NEW import
+from app.auth.hashing import hash_password, verify_password
+from app.auth.otp_utils import generate_otp, otp_expiry
+from app.auth.jwt_utils import create_access_token
+from app.notify.emailer import send_otp_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
+# ================= SCHEMAS =================
 
-class UserIn(BaseModel):
+class RegisterIn(BaseModel):
+    username: str
+    password: str
+    email: EmailStr
+
+class LoginIn(BaseModel):
     username: str
     password: str
 
+class EmailIn(BaseModel):
+    email: EmailStr
 
-# =====================================================
-# 🔵 CREATE USER  →  returns id + JWT token
-# =====================================================
+class ResetPasswordIn(BaseModel):
+    email: EmailStr
+    otp: str
+    new_password: str
+    confirm_password: str
+
+
+# ================= REGISTER (AUTO LOGIN) =================
 @router.post("/create")
-async def create_user(user: UserIn):
-    print("🟢 /auth/create called with:", user.username)
+async def register_user(data: RegisterIn):
+    if await db.users.find_one({"username": data.username}):
+        raise HTTPException(400, "Username already exists")
 
-    # user already irukana check
-    existing = await db.users.find_one({"username": user.username})
-    if existing:
-        raise HTTPException(status_code=400, detail="User already exists")
-
-    hashed = hash_password(user.password)
+    if await db.users.find_one({"email": data.email}):
+        raise HTTPException(400, "Email already registered")
 
     result = await db.users.insert_one({
-        "username": user.username,
-        "password": hashed
+        "username": data.username,
+        "email": data.email,
+        "password": hash_password(data.password),
+        "created_at": datetime.utcnow()
     })
 
     user_id = str(result.inserted_id)
 
-    # 🔐 JWT token create pannrom – payload-la user_id store
     token = create_access_token({"user_id": user_id})
 
     return {
-        "message": "User created successfully",
-        "user": {
-            "id": user_id,
-            "username": user.username,
-        },
-        "token": token,  # 👈 React/frontend store pannikum place
-    }
-
-
-# =====================================================
-# 🔵 LOGIN USER  →  returns same id + new JWT token
-# =====================================================
-@router.post("/login")
-async def login_user(user: UserIn):
-    print("🟢 /auth/login called with:", user.username)
-
-    db_user = await db.users.find_one({"username": user.username})
-    if not db_user:
-        raise HTTPException(status_code=400, detail="Invalid username")
-
-    ok = verify_password(user.password, db_user["password"])
-    if not ok:
-        raise HTTPException(status_code=400, detail="Wrong password")
-
-    user_id = str(db_user["_id"])
-    token = create_access_token({"user_id": user_id})
-
-    return {
-        "message": "Login Success",
-        "user": {
-            "id": user_id,
-            "username": db_user["username"],
-        },
+        "message": "User created & logged in",
         "token": token,
+        "user": {
+            "id": user_id,
+            "username": data.username,
+            "email": data.email
+        }
     }
 
 
-# =====================================================
-# 🔵 GET ALL USERS  →  (debug only)
-# =====================================================
-@router.get("/all-users")
-async def get_all_users():
-    cursor = db.users.find({})
-    users = []
-    async for doc in cursor:
-        users.append({
-            "id": str(doc["_id"]),
-            "username": doc.get("username")
-        })
-    return users
+# ================= LOGIN =================
+@router.post("/login")
+async def login_user(data: LoginIn):
+    user = await db.users.find_one({"username": data.username})
+    if not user or not verify_password(data.password, user["password"]):
+        raise HTTPException(400, "Invalid credentials")
+
+    token = create_access_token({"user_id": str(user["_id"])})
+
+    return {
+        "message": "Login successful",
+        "token": token,
+        "user": {
+            "id": str(user["_id"]),
+            "username": user["username"],
+            "email": user["email"]
+        }
+    }
+
+
+# ================= FORGOT PASSWORD (SEND OTP) =================
+@router.post("/forgot-password")
+async def forgot_password(data: EmailIn):
+    user = await db.users.find_one({"email": data.email})
+    if not user:
+        raise HTTPException(404, "Email not found")
+
+    otp = generate_otp()
+    expiry = otp_expiry()
+
+    await db.password_resets.update_one(
+        {"email": data.email},
+        {"$set": {"otp": otp, "expires_at": expiry}},
+        upsert=True
+    )
+
+    send_otp_email(to_email=data.email, otp=otp)
+
+    return {"message": "OTP sent to email"}
+
+
+# ================= RESET PASSWORD =================
+@router.post("/reset-password")
+async def reset_password(data: ResetPasswordIn):
+    record = await db.password_resets.find_one({"email": data.email})
+
+    if not record:
+        raise HTTPException(400, "OTP not requested")
+
+    # 🔥 FIX: OTP datatype mismatch (int vs str)
+    if str(record["otp"]) != str(data.otp):
+        raise HTTPException(400, "Invalid OTP")
+
+    if datetime.utcnow() > record["expires_at"]:
+        raise HTTPException(400, "OTP expired")
+
+    if data.new_password != data.confirm_password:
+        raise HTTPException(400, "Passwords do not match")
+
+    await db.users.update_one(
+        {"email": data.email},
+        {"$set": {"password": hash_password(data.new_password)}}
+    )
+
+    await db.password_resets.delete_one({"email": data.email})
+
+    return {"message": "Password reset successful"}

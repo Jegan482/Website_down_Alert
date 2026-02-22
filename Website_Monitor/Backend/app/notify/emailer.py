@@ -274,3 +274,93 @@ Website Monitor
         print(f"📧 SSL expiry alert sent to {to_email} for {website_name} (days_left={days_left})")
     except Exception as e:
         print("❌ Failed to send SSL expiry email:", repr(e))
+
+def send_otp_email(to_email: str, otp: str):
+    """
+    Send OTP email for password reset / verification.
+    Uses same SMTP config as alert emails.
+    """
+
+    print("DEBUG OTP EMAIL:")
+    print("  TO:", to_email)
+    print("  OTP:", otp)
+
+    if not (SMTP_USER and SMTP_PASS):
+        print("⚠️ SMTP credentials missing, cannot send OTP email.")
+        return
+
+    if not to_email:
+        print("⚠️ No email provided for OTP.")
+        return
+
+    subject = "Your OTP for Password Reset"
+
+    text_body = f"""Hi,
+
+You requested to reset your password.
+
+Your One-Time Password (OTP) is:
+
+  {otp}
+
+This OTP is valid for 5 minutes only.
+
+If you did not request this, please ignore this email.
+
+Thanks,
+Website Monitor
+"""
+
+    html_body = f"""
+<html>
+  <body style="font-family: system-ui, sans-serif; font-size:16px; color:#111827;">
+    <p>Hi,</p>
+
+    <p>You requested to reset your password.</p>
+
+    <p style="font-size:18px;">
+      <strong>Your OTP:</strong>
+    </p>
+
+    <div style="
+      font-size:24px;
+      font-weight:700;
+      letter-spacing:2px;
+      background:#eef2ff;
+      padding:12px 16px;
+      display:inline-block;
+      border-radius:8px;
+      margin:10px 0;
+    ">
+      {otp}
+    </div>
+
+    <p>This OTP is valid for <strong>5 minutes</strong>.</p>
+
+    <p>If you did not request this, please ignore this email.</p>
+
+    <p style="margin-top:16px;">
+      Thanks,<br/>
+      <strong>Website Monitor</strong>
+    </p>
+  </body>
+</html>
+"""
+
+    msg = EmailMessage()
+    msg["Subject"] = subject
+    msg["From"] = f"Website Monitor <{FROM_EMAIL}>"
+    msg["To"] = to_email
+    msg["Reply-To"] = FROM_EMAIL
+    _common_headers(msg)
+
+    msg.set_content(text_body)
+    msg.add_alternative(html_body, subtype="html")
+
+    try:
+        server = _open_smtp()
+        server.send_message(msg)
+        server.quit()
+        print(f"📧 OTP email sent successfully to {to_email}")
+    except Exception as e:
+        print("❌ Failed to send OTP email:", repr(e))
