@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import "./LoginPage.css";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://website-down-alert.onrender.com";
 
 function extractToken(data) {
   return data?.access_token || data?.token || null;
