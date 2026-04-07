@@ -13,29 +13,30 @@ from app.database import db
 from app.notify.emailer import send_down_alert, send_ssl_expiry_alert
 
 # =====================================================
-# 🔥 CREATE APP (ONLY ONCE)
+# 🔥 CREATE APP
 # =====================================================
 app = FastAPI()
 
 # =====================================================
-# 🔥 DEBUG PLOT ROUTER (IMPORTANT)
+# ✅ ROOT ROUTE (IMPORTANT FOR RENDER)
+# =====================================================
+@app.get("/")
+def home():
+    return {"message": "Backend is running 🚀"}
+
+# =====================================================
+# 🔥 DEBUG PLOT ROUTER
 # =====================================================
 from app.debug.plot import router as debug_plot_router
 app.include_router(debug_plot_router)
 
 # =====================================================
-# 🔥 CORS
+# 🔥 CORS (ONLY CHANGE HERE)
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://127.0.0.1:5500",
-        "http://localhost:5500",
-        "http://127.0.0.1:5173",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://localhost:3000",
-        "*",
+        "https://vocal-gaufre-f38417.netlify.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -108,12 +109,12 @@ async def debug_run_ssl():
     return {"message": "Manual SSL recheck completed"}
 
 # =====================================================
-# 📧 TEST EMAILS
+# 📧 TEST EMAILS (UNCHANGED)
 # =====================================================
 @app.get("/test-email")
 async def test_email():
     send_down_alert(
-        to_email="Jegan28122005@gmail.com",
+        to_email="xxxxxxx@gmail.com",
         website_name="Test Site",
         url="https://example.com",
         error="Manual test error",
@@ -123,7 +124,7 @@ async def test_email():
 @app.get("/test-ssl-email")
 async def test_ssl_email():
     send_ssl_expiry_alert(
-        to_email="Jegan28122005@gmail.com",
+        to_email="xxxxxxx@gmail.com",
         website_name="Test SSL Site",
         url="https://example.com",
         days_left=5,
