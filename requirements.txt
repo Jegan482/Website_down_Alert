@@ -1,3 +1,8 @@
-fastapi==0.123.5
-dotenv
-bcrypt==4.0.1
+fastapi
+uvicorn
+python-dotenv
+bcrypt
+apscheduler
+pymongo
+dnspython
+email-validator
