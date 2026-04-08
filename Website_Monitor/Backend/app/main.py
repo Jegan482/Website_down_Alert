@@ -35,7 +35,9 @@ app.include_router(debug_plot_router)
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],   # ✅ FIX: allow all origins
+    allow_origins=[
+        "https://resilient-clafoutis-7bf947.netlify.app"
+    ],  # ✅ exact frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
