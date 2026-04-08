@@ -31,13 +31,11 @@ from app.debug.plot import router as debug_plot_router
 app.include_router(debug_plot_router)
 
 # =====================================================
-# 🔥 CORS (ONLY CHANGE HERE)
+# 🔥 CORS (FIXED ✅)
 # =====================================================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://vocal-gaufre-f38417.netlify.app"
-    ],
+    allow_origins=["*"],   # ✅ FIX: allow all origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
