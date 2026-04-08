@@ -1,7 +1,6 @@
-// src/api/websites.js
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://website-down-alert.onrender.com";
 
 // 🔐 Auth header helper
 function authHeaders() {
